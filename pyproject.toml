@@ -1,0 +1,41 @@
+[project]
+name = "glucose-rl"
+version = "0.1.0"
+description = "RL-based blood glucose regulation using TD3, compared against PID and DDPG"
+readme = "README.md"
+requires-python = ">=3.10,<3.13"
+
+dependencies = [
+    "numpy>=1.24,<3",
+    "scipy>=1.10",
+    "matplotlib>=3.7",
+    "pandas>=2.0",
+    "gymnasium>=0.29,<2",
+    "stable-baselines3>=2.3.0",
+    "torch>=2.0",
+    "tensorboard>=2.14",
+    "rich>=13.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4",
+    "ruff>=0.4",
+]
+
+[tool.uv]
+# torch is large; this keeps resolution predictable across platforms.
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 88
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = ["E741"]
