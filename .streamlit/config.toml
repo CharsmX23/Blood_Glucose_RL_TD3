@@ -1,0 +1,15 @@
+# Dashboard theme. Kept in sync with the CSS palette at the top of app.py so the
+# page chrome and the matplotlib charts read as one product.
+[theme]
+base = "light"
+primaryColor = "#0B7285"            # teal — buttons, sliders, active states
+backgroundColor = "#FFFFFF"         # page
+secondaryBackgroundColor = "#F1F3F5"  # sidebar / cards
+textColor = "#1A1D23"               # dark ink
+font = "sans serif"
+
+[server]
+headless = true
+
+[browser]
+gatherUsageStats = false

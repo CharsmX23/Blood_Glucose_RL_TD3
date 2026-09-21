@@ -1,0 +1,17 @@
+Metric                               PID          DDPG           TD3
+--------------------------------------------------------------------
+RMSE (mg/dL)                      *25.31         29.18         26.94
+MAE (mg/dL)                       *12.49         21.20         15.82
+Overshoot (mg/dL)                  103.4         *93.6          96.3
+Settling time (min)                 1389         *1142          1440
+Mean meal recovery (min)              65            *2            51
+Total reward                     *-109.3        -156.8        -120.7
+Total insulin (mU)                  9734         13631         *8989
+Insulin variation                 *0.041         0.085         0.151
+Time in range 70-180 (%)            94.2         *95.5          94.5
+Time < 70 (%)                       *0.0          *0.0          *0.0
+Time > 180 (%)                       5.8          *4.5           5.5
+Min glucose (mg/dL)               *101.9          78.1          92.4
+Max glucose (mg/dL)                213.4        *203.6         206.3
+
+* marks the best value in each row.

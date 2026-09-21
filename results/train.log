@@ -1,0 +1,98 @@
+=== SWEEP START 2026-09-10T13:57:17Z : train_all --seeds 0 1 2 --timesteps 300000 ===
+[DDPG seed=0] training for 300000 steps
+Eval num_timesteps=10000, episode_reward=-553.02 +/- 0.00
+Episode length: 1440.00 +/- 0.00
+New best mean reward!
+    episode   10 | steps   14400 | mean return (last 10) =   -284.17
+Eval num_timesteps=20000, episode_reward=-99.43 +/- 0.00
+Episode length: 1440.00 +/- 0.00
+New best mean reward!
+    episode   20 | steps   28800 | mean return (last 10) =   -227.70
+Eval num_timesteps=30000, episode_reward=-171.30 +/- 0.00
+Episode length: 1440.00 +/- 0.00
+Eval num_timesteps=40000, episode_reward=-170.28 +/- 0.00
+Episode length: 1440.00 +/- 0.00
+    episode   30 | steps   43200 | mean return (last 10) =   -168.89
+Eval num_timesteps=50000, episode_reward=-193.09 +/- 0.00
+Episode length: 1440.00 +/- 0.00
+    episode   40 | steps   57600 | mean return (last 10) =   -179.41
+Eval num_timesteps=60000, episode_reward=-207.98 +/- 0.00
+Episode length: 1440.00 +/- 0.00
+Eval num_timesteps=70000, episode_reward=-135.58 +/- 0.00
+Episode length: 1440.00 +/- 0.00
+    episode   50 | steps   72000 | mean return (last 10) =   -164.68
+Eval num_timesteps=80000, episode_reward=-132.19 +/- 0.00
+Episode length: 1440.00 +/- 0.00
+    episode   60 | steps   86400 | mean return (last 10) =   -140.37
+Eval num_timesteps=90000, episode_reward=-150.52 +/- 0.00
+Episode length: 1440.00 +/- 0.00
+Eval num_timesteps=100000, episode_reward=-123.59 +/- 0.00
+Episode length: 1440.00 +/- 0.00
+    episode   70 | steps  100800 | mean return (last 10) =   -145.35
+Eval num_timesteps=110000, episode_reward=-193.35 +/- 0.00
+Episode length: 1440.00 +/- 0.00
+    episode   80 | steps  115200 | mean return (last 10) =   -151.36
+Eval num_timesteps=120000, episode_reward=-147.42 +/- 0.00
+Episode length: 1440.00 +/- 0.00
+    episode   90 | steps  129600 | mean return (last 10) =   -182.78
+Eval num_timesteps=130000, episode_reward=-124.21 +/- 0.00
+Episode length: 1440.00 +/- 0.00
+Eval num_timesteps=140000, episode_reward=-210.53 +/- 0.00
+Episode length: 1440.00 +/- 0.00
+    episode  100 | steps  144000 | mean return (last 10) =   -162.64
+Eval num_timesteps=150000, episode_reward=-192.94 +/- 0.00
+Episode length: 1440.00 +/- 0.00
+    episode  110 | steps  158400 | mean return (last 10) =   -151.45
+Eval num_timesteps=160000, episode_reward=-134.14 +/- 0.00
+Episode length: 1440.00 +/- 0.00
+Eval num_timesteps=170000, episode_reward=-101.22 +/- 0.00
+Episode length: 1440.00 +/- 0.00
+    episode  120 | steps  172800 | mean return (last 10) =   -142.00
+Eval num_timesteps=180000, episode_reward=-142.63 +/- 0.00
+Episode length: 1440.00 +/- 0.00
+    episode  130 | steps  187200 | mean return (last 10) =   -133.24
+Eval num_timesteps=190000, episode_reward=-119.11 +/- 0.00
+Episode length: 1440.00 +/- 0.00
+Eval num_timesteps=200000, episode_reward=-104.42 +/- 0.00
+Episode length: 1440.00 +/- 0.00
+    episode  140 | steps  201600 | mean return (last 10) =   -134.49
+Eval num_timesteps=210000, episode_reward=-140.45 +/- 0.00
+Episode length: 1440.00 +/- 0.00
+    episode  150 | steps  216000 | mean return (last 10) =   -135.51
+Eval num_timesteps=220000, episode_reward=-94.44 +/- 0.00
+Episode length: 1440.00 +/- 0.00
+New best mean reward!
+Eval num_timesteps=230000, episode_reward=-139.36 +/- 0.00
+Episode length: 1440.00 +/- 0.00
+    episode  160 | steps  230400 | mean return (last 10) =   -146.81
+Eval num_timesteps=240000, episode_reward=-252.30 +/- 0.00
+Episode length: 1440.00 +/- 0.00
+    episode  170 | steps  244800 | mean return (last 10) =   -154.35
+Eval num_timesteps=250000, episode_reward=-110.88 +/- 0.00
+Episode length: 1440.00 +/- 0.00
+    episode  180 | steps  259200 | mean return (last 10) =   -144.57
+Eval num_timesteps=260000, episode_reward=-127.82 +/- 0.00
+Episode length: 1440.00 +/- 0.00
+Eval num_timesteps=270000, episode_reward=-103.34 +/- 0.00
+Episode length: 1440.00 +/- 0.00
+    episode  190 | steps  273600 | mean return (last 10) =   -115.44
+Eval num_timesteps=280000, episode_reward=-88.73 +/- 0.00
+Episode length: 1440.00 +/- 0.00
+New best mean reward!
+    episode  200 | steps  288000 | mean return (last 10) =   -114.02
+Eval num_timesteps=290000, episode_reward=-166.19 +/- 0.00
+Episode length: 1440.00 +/- 0.00
+Eval num_timesteps=300000, episode_reward=-115.83 +/- 0.00
+Episode length: 1440.00 +/- 0.00
+[DDPG seed=0] saved to results\ddpg_seed0
+[DDPG seed=1] training for 300000 steps
+Eval num_timesteps=10000, episode_reward=-553.02 +/- 0.00
+Episode length: 1440.00 +/- 0.00
+New best mean reward!
+    episode   10 | steps   14400 | mean return (last 10) =   -344.95
+Eval num_timesteps=20000, episode_reward=-141.00 +/- 0.00
+Episode length: 1440.00 +/- 0.00
+New best mean reward!
+    episode   20 | steps   28800 | mean return (last 10) =   -165.24
+Eval num_timesteps=30000, episode_reward=-142.29 +/- 0.00
+Episode length: 1440.00 +/- 0.00
