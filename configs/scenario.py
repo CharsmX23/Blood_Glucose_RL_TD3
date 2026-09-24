@@ -21,6 +21,10 @@ MAX_STEPS = int(EPISODE_MINUTES / DT)
 TARGET = 110.0           # setpoint                                [mg/dL]
 U_MAX = 15.0             # max insulin infusion                   [mU/min]
 
+# Include time of day (t / MAX_STEPS) in the RL observation. Turning it off is
+# the ablation that tests whether agents dose on the clock (README §6.3).
+OBS_TIME_OF_DAY = True
+
 # Clinical thresholds
 HYPO = 70.0
 SEVERE_HYPO = 54.0
@@ -44,6 +48,13 @@ EVAL_MEAL_SPEC = [
 # room for a controller to improve, rather than a scenario basal alone solves.
 ABSORPTION_K = 0.03
 
+# Training-distribution support. Anything outside these ranges was never seen by
+# the RL agents; the dashboard uses them to flag extrapolation.
+TRAIN_ONSET_JITTER = (-45.0, 45.0)     # added to each meal onset       [min]
+TRAIN_AMP_FACTOR = (0.75, 1.25)        # multiplies each meal amplitude
+TRAIN_K_FACTOR = (0.8, 1.25)           # multiplies ABSORPTION_K
+TRAIN_G0_RANGE = (90.0, 180.0)         # initial glucose              [mg/dL]
+
 
 def eval_meals() -> list[Meal]:
     """Deterministic meal set used for all reported comparisons."""
@@ -54,9 +65,10 @@ def random_meals(rng: np.random.Generator) -> list[Meal]:
     """Randomised meals for training: +/-25% amplitude, +/-45 min timing."""
     meals = []
     for t, a in EVAL_MEAL_SPEC:
-        t_j = float(np.clip(t + rng.uniform(-45, 45), 30, MAX_STEPS - 120))
-        a_j = float(a * rng.uniform(0.75, 1.25))
-        k_j = float(ABSORPTION_K * rng.uniform(0.8, 1.25))
+        t_j = float(np.clip(t + rng.uniform(*TRAIN_ONSET_JITTER), 30,
+                            MAX_STEPS - 120))
+        a_j = float(a * rng.uniform(*TRAIN_AMP_FACTOR))
+        k_j = float(ABSORPTION_K * rng.uniform(*TRAIN_K_FACTOR))
         meals.append(Meal(t_j, a_j, k_j))
     return meals
 

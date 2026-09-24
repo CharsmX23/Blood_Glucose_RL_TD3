@@ -22,6 +22,7 @@ def build_env(
     target: float = cfg.TARGET,
     u_max: float = cfg.U_MAX,
     G0: float | None = None,
+    time_of_day: bool = cfg.OBS_TIME_OF_DAY,
 ) -> GlucoseEnv:
     env = GlucoseEnv(
         meals=meals,
@@ -29,6 +30,7 @@ def build_env(
         randomize_initial_state=False,
         target=target,
         u_max=u_max,
+        time_of_day=time_of_day,
     )
     env.reset()
     if G0 is not None:
@@ -89,20 +91,27 @@ def load_agent(run_dir: Path, algo: str):
         return None, None
 
     model = cls.load(str(model_path), device="cpu")
+    tod = expects_time_of_day(model)
 
     norm_path = run_dir / "vecnormalize.pkl"
     vec = None
     if norm_path.exists():
-        dummy = DummyVecEnv([make_eval_env])
+        dummy = DummyVecEnv([lambda: make_eval_env(time_of_day=tod)])
         vec = VecNormalize.load(str(norm_path), dummy)
         vec.training = False
         vec.norm_reward = False
     return model, vec
 
 
+def expects_time_of_day(model) -> bool:
+    """Whether a policy was trained with the time-of-day input (5-D obs) or on
+    the ablation (4-D). Read from the policy itself so it cannot disagree."""
+    return model.observation_space.shape[0] == 5
+
+
 def run_agent(meals, model, vec, deterministic: bool = True, **kw) -> dict:
     """Roll a trained agent out on the true (unnormalised) plant."""
-    env = build_env(meals, **kw)
+    env = build_env(meals, time_of_day=expects_time_of_day(model), **kw)
 
     def policy(e):
         obs = e._observation().reshape(1, -1)
@@ -114,16 +123,25 @@ def run_agent(meals, model, vec, deterministic: bool = True, **kw) -> dict:
     return _rollout(env, policy)
 
 
-def discover_runs(results_dir: str | Path = "results") -> dict[str, list[Path]]:
-    """Find every trained run on disk, grouped by algorithm."""
+def discover_runs(results_dir: str | Path = "results",
+                  report_skipped: bool = True) -> dict[str, list[Path]]:
+    """Find every complete trained run on disk, grouped by algorithm.
+
+    A run needs both its policy and its VecNormalize stats; without the stats
+    the agent sees unnormalised observations and its behaviour is meaningless.
+    """
     results_dir = Path(results_dir)
     found: dict[str, list[Path]] = {"ddpg": [], "td3": []}
     if not results_dir.exists():
         return found
+    required = (Path("best") / "best_model.zip", Path("vecnormalize.pkl"))
     for algo in found:
         for d in sorted(results_dir.glob(f"{algo}_seed*")):
-            if (d / "best" / "best_model.zip").exists() or (
-                d / "final_model.zip"
-            ).exists():
-                found[algo].append(d)
+            missing = [str(p) for p in required if not (d / p).exists()]
+            if missing:
+                if report_skipped:
+                    print(f"discover_runs: skipping {d.name} (missing "
+                          f"{', '.join(missing)})")
+                continue
+            found[algo].append(d)
     return found

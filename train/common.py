@@ -9,6 +9,7 @@ attributable to the algorithm and not to the tuning.
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 from pathlib import Path
 
@@ -19,6 +20,7 @@ from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.noise import NormalActionNoise
 from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
 
+from configs import scenario as cfg
 from envs.glucose_env import make_eval_env, make_train_env
 
 ALGOS = {"ddpg": DDPG, "td3": TD3}
@@ -37,6 +39,16 @@ HYPERPARAMS = dict(
 )
 
 ACTION_NOISE_SIGMA = 0.1
+
+
+def model_kwargs() -> dict:
+    """A fresh copy of HYPERPARAMS for one model.
+
+    SB3's DDPG writes n_critics=1 into the policy_kwargs dict it is given. With
+    the shared dict, every TD3 built later in the same process (train_all runs
+    DDPG first) silently lost its twin critic and was no longer TD3.
+    """
+    return copy.deepcopy(HYPERPARAMS)
 
 
 class ProgressCallback(BaseCallback):
@@ -62,20 +74,24 @@ class ProgressCallback(BaseCallback):
         return True
 
 
-def build_envs(seed: int, log_dir: Path):
+def build_envs(seed: int, log_dir: Path, time_of_day: bool = cfg.OBS_TIME_OF_DAY):
     """Training env (randomised meals) and eval env (fixed scenario).
 
     VecNormalize statistics are shared: the eval env is wrapped with the SAME
     VecNormalize object as training, with training=False and reward
     normalisation off, so observations are scaled consistently.
     """
-    train_env = DummyVecEnv([lambda: Monitor(make_train_env())])
+    train_env = DummyVecEnv(
+        [lambda: Monitor(make_train_env(time_of_day=time_of_day))]
+    )
     train_env.seed(seed)
     train_env = VecNormalize(
         train_env, norm_obs=True, norm_reward=True, clip_obs=10.0
     )
 
-    eval_env = DummyVecEnv([lambda: Monitor(make_eval_env())])
+    eval_env = DummyVecEnv(
+        [lambda: Monitor(make_eval_env(time_of_day=time_of_day))]
+    )
     eval_env.seed(seed)
     eval_env = VecNormalize(
         eval_env, norm_obs=True, norm_reward=False, clip_obs=10.0, training=False
@@ -90,15 +106,17 @@ def train(
     total_timesteps: int = 300_000,
     outdir: str = "results",
     verbose: int = 0,
+    time_of_day: bool = cfg.OBS_TIME_OF_DAY,
+    run_name: str | None = None,
 ) -> Path:
     algo_name = algo_name.lower()
     if algo_name not in ALGOS:
         raise ValueError(f"unknown algo {algo_name!r}; choose from {list(ALGOS)}")
 
-    run_dir = Path(outdir) / f"{algo_name}_seed{seed}"
+    run_dir = Path(outdir) / (run_name or f"{algo_name}_seed{seed}")
     run_dir.mkdir(parents=True, exist_ok=True)
 
-    train_env, eval_env = build_envs(seed, run_dir)
+    train_env, eval_env = build_envs(seed, run_dir, time_of_day)
 
     action_noise = NormalActionNoise(
         mean=np.zeros(1), sigma=ACTION_NOISE_SIGMA * np.ones(1)
@@ -111,7 +129,7 @@ def train(
         seed=seed,
         verbose=verbose,
         tensorboard_log=str(run_dir / "tb"),
-        **HYPERPARAMS,
+        **model_kwargs(),
     )
 
     eval_cb = EvalCallback(
@@ -144,6 +162,9 @@ def train(
                 "algo": algo_name,
                 "seed": seed,
                 "total_timesteps": total_timesteps,
+                "time_of_day": time_of_day,
+                "target": cfg.TARGET,
+                "u_max": cfg.U_MAX,
                 "hyperparams": {k: str(v) for k, v in HYPERPARAMS.items()},
                 "action_noise_sigma": ACTION_NOISE_SIGMA,
                 "episode_returns": progress_cb.episode_returns,
@@ -162,5 +183,10 @@ def cli(algo_name: str) -> None:
     ap.add_argument("--timesteps", type=int, default=300_000)
     ap.add_argument("--outdir", type=str, default="results")
     ap.add_argument("--verbose", type=int, default=0)
+    ap.add_argument("--no-time-of-day", action="store_true",
+                    help="ablation: drop t/T_max from the observation")
+    ap.add_argument("--run-name", type=str, default=None,
+                    help="run folder name (default: <algo>_seed<seed>)")
     a = ap.parse_args()
-    train(algo_name, a.seed, a.timesteps, a.outdir, a.verbose)
+    train(algo_name, a.seed, a.timesteps, a.outdir, a.verbose,
+          time_of_day=not a.no_time_of_day, run_name=a.run_name)

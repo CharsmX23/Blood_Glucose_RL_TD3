@@ -15,6 +15,7 @@ import json
 from pathlib import Path
 
 import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
@@ -23,6 +24,7 @@ from configs import scenario as cfg  # noqa: E402
 from controllers.pid import default_pid  # noqa: E402
 from envs.glucose_env import make_eval_env  # noqa: E402
 from eval.metrics import compute_metrics, metrics_table  # noqa: E402
+from eval.runner import expects_time_of_day  # noqa: E402
 
 COLORS = {"PID": "#D55E00", "DDPG": "#0072B2", "TD3": "#009E73"}
 
@@ -61,13 +63,16 @@ def run_agent(run_dir: Path, algo: str) -> dict | None:
     if not model_path.exists():
         return None
 
+    model = cls.load(str(model_path), device="cpu")
+    tod = expects_time_of_day(model)
+
     # The rollout runs on the RAW env, not through DummyVecEnv. A VecEnv
     # auto-resets the moment an episode ends, which clears env.history and
     # leaves nothing to score. So the observation normalisation is applied by
     # hand from the saved statistics instead.
     norm_path = run_dir / "vecnormalize.pkl"
     if norm_path.exists():
-        stub = DummyVecEnv([lambda: Monitor(make_eval_env())])
+        stub = DummyVecEnv([lambda: Monitor(make_eval_env(time_of_day=tod))])
         vecnorm = VecNormalize.load(str(norm_path), stub)
         vecnorm.training = False
         vecnorm.norm_reward = False
@@ -82,9 +87,7 @@ def run_agent(run_dir: Path, algo: str) -> dict | None:
         def normalize(o):
             return o.reshape(1, -1)
 
-    model = cls.load(str(model_path), device="cpu")
-
-    env = make_eval_env()
+    env = make_eval_env(time_of_day=tod)
     obs, _ = env.reset()
     done = False
     while not done:

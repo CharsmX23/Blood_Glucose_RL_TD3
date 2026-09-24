@@ -1,4 +1,4 @@
-.PHONY: setup test pid ui smoke train compare clean all
+.PHONY: setup test pid ui smoke train compare sweep clean all
 
 setup:
 	uv sync --extra dev
@@ -21,6 +21,9 @@ train:
 
 compare:
 	uv run python -m eval.compare --seeds 0 1 2
+
+sweep:
+	uv run python -m eval.shift_sweep --seeds 0 1 2
 
 tb:
 	uv run tensorboard --logdir results/

@@ -1,0 +1,17 @@
+Shift (min)                        PID                ddpg_seed0                 td3_seed0         ddpg_notime_seed0
+--------------------------------------------------------------------------------------------------------------------
+-90            25.33 (+0.1%)  TIR 94.2  23.92 (+26.5%)! TIR 97.3   25.89 (+6.9%)  TIR 95.6  28.64 (+16.9%)  TIR 92.7
+-45            25.32 (+0.0%)  TIR 94.2   19.51 (+3.2%)  TIR 98.3   24.60 (+1.6%)  TIR 96.9   24.24 (-1.0%)  TIR 95.5
++0             25.31 (+0.0%)  TIR 94.2   18.91 (+0.0%)  TIR 99.7   24.22 (+0.0%)  TIR 96.2   24.50 (+0.0%)  TIR 95.1
++45            25.30 (-0.1%)  TIR 94.2  22.63 (+19.7%)  TIR 98.3   23.74 (-2.0%)  TIR 96.1   23.84 (-2.7%)  TIR 95.7
++90            25.28 (-0.1%)  TIR 94.2  25.54 (+35.1%)! TIR 96.8  28.14 (+16.2%)  TIR 95.1   22.54 (-8.0%)  TIR 96.6
++120           25.27 (-0.2%)  TIR 94.2  32.77 (+73.3%)! TIR 92.2  27.24 (+12.5%)  TIR 95.3   24.01 (-2.0%)  TIR 95.9
+
+Each cell: RMSE mg/dL (change vs. shift 0), Time in Range 70-180 %.
+! marks an RMSE degradation above 20%.
+
+Insulin in the 60 min before each meal onset, summed over meals (shift 0):
+  PID                          976 mU
+  ddpg_seed0                  2171 mU
+  td3_seed0                   1579 mU
+  ddpg_notime_seed0           1212 mU

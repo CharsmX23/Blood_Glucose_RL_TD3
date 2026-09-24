@@ -8,7 +8,8 @@ Observation (5-D, all normalised to roughly [-3, 3])
     [1] X * 1000                    insulin action, scaled to O(1)
     [2] (I - Ib) / 10               insulin on board
     [3] integral_error / 1000       accumulated error, clipped
-    [4] t / MAX_STEPS               time of day
+    [4] t / MAX_STEPS               time of day (omitted when time_of_day=False,
+                                    the ablation; the observation is then 4-D)
 
     The integral term is included deliberately. PID gets an integrator by
     construction; withholding one from the RL agents would make the plant
@@ -58,6 +59,7 @@ class GlucoseEnv(gym.Env):
         hypo_penalty: float = 10.0,
         terminate_on_severe_hypo: bool = True,
         render_mode: str | None = None,
+        time_of_day: bool = cfg.OBS_TIME_OF_DAY,
     ) -> None:
         super().__init__()
 
@@ -73,6 +75,7 @@ class GlucoseEnv(gym.Env):
         self.hypo_penalty = float(hypo_penalty)
         self.terminate_on_severe_hypo = terminate_on_severe_hypo
         self.render_mode = render_mode
+        self.time_of_day = bool(time_of_day)
 
         self.model = BergmanModel(params=self.params, meals=self._fixed_meals or [])
 
@@ -80,7 +83,8 @@ class GlucoseEnv(gym.Env):
             low=-1.0, high=1.0, shape=(1,), dtype=np.float32
         )
         self.observation_space = spaces.Box(
-            low=-np.inf, high=np.inf, shape=(5,), dtype=np.float32
+            low=-np.inf, high=np.inf, shape=(5 if self.time_of_day else 4,),
+            dtype=np.float32,
         )
 
         self._rng = np.random.default_rng()
@@ -102,16 +106,15 @@ class GlucoseEnv(gym.Env):
 
     def _observation(self) -> np.ndarray:
         err = self.model.G - self.target
-        return np.array(
-            [
-                err / 100.0,
-                self.model.X * 1000.0,
-                (self.model.I - self.params.Ib) / 10.0,
-                np.clip(self._integral_error / 1000.0, -5.0, 5.0),
-                self._step_count / self.max_steps,
-            ],
-            dtype=np.float32,
-        )
+        obs = [
+            err / 100.0,
+            self.model.X * 1000.0,
+            (self.model.I - self.params.Ib) / 10.0,
+            np.clip(self._integral_error / 1000.0, -5.0, 5.0),
+        ]
+        if self.time_of_day:
+            obs.append(self._step_count / self.max_steps)
+        return np.array(obs, dtype=np.float32)
 
     def _reward(self, G: float, u: float) -> float:
         e = (G - self.target) / 100.0
@@ -140,7 +143,7 @@ class GlucoseEnv(gym.Env):
             self.model.meals = list(self._fixed_meals or [])
 
         if self.randomize_initial_state:
-            G0 = float(self._rng.uniform(90.0, 180.0))
+            G0 = float(self._rng.uniform(*cfg.TRAIN_G0_RANGE))
         else:
             G0 = self.target
 
@@ -149,7 +152,9 @@ class GlucoseEnv(gym.Env):
         # Start with insulin already on board consistent with holding target,
         # so the episode does not open with a large avoidable transient.
         u_basal = self.model.basal_infusion_for(self.target)
-        self.model.state[2] = self.params.Ib + u_basal / (self.params.n * self.params.V1)
+        self.model.state[2] = self.params.Ib + u_basal / (
+            self.params.n * self.params.V1
+        )
         self.model.state[1] = (self.params.p3 / self.params.p2) * (
             self.model.state[2] - self.params.Ib
         )

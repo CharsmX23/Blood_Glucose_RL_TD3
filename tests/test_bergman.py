@@ -9,12 +9,14 @@ to diagnose from reward curves alone.
 
 from __future__ import annotations
 
+import copy
+
 import numpy as np
 import pytest
 
 from configs import scenario as cfg
 from controllers.pid import default_pid
-from envs.bergman import BergmanModel, BergmanParams, Meal
+from envs.bergman import BergmanModel, Meal
 from envs.glucose_env import make_eval_env, make_train_env
 
 
@@ -39,7 +41,7 @@ def test_insulin_lowers_glucose_monotonically():
     """Steady-state glucose must decrease monotonically with infusion rate."""
     m = BergmanModel()
     gs = [m.steady_state_glucose(u) for u in [0, 2, 5, 10, 15, 20]]
-    assert all(a > b for a, b in zip(gs, gs[1:]))
+    assert all(a > b for a, b in zip(gs, gs[1:], strict=False))
 
 
 def test_closed_form_matches_simulation():
@@ -65,7 +67,8 @@ def test_basal_infusion_holds_target():
 def test_negative_insulin_rejected():
     """The body cannot remove insulin on command; u < 0 must clip to 0."""
     a, b = BergmanModel(), BergmanModel()
-    a.reset(); b.reset()
+    a.reset()
+    b.reset()
     for _ in range(200):
         a.step(-5.0)
         b.step(0.0)
@@ -92,8 +95,10 @@ def test_meal_raises_glucose():
 
 def test_rk4_beats_euler_on_accuracy():
     """Higher substep counts must converge, confirming the integrator is sane."""
-    ref = BergmanModel(substeps=32); ref.reset()
-    coarse = BergmanModel(substeps=4); coarse.reset()
+    ref = BergmanModel(substeps=32)
+    ref.reset()
+    coarse = BergmanModel(substeps=4)
+    coarse.reset()
     for _ in range(500):
         ref.step(5.0)
         coarse.step(5.0)
@@ -218,7 +223,8 @@ def test_pid_never_causes_hypoglycaemia():
     env = make_eval_env()
     pid = default_pid(env.model.basal_infusion_for(env.target),
                       env.u_max, env.target)
-    env.reset(); pid.reset()
+    env.reset()
+    pid.reset()
     done = False
     while not done:
         u = pid.update(env.model.G, dt=env.dt)
@@ -245,7 +251,8 @@ def test_pid_beats_basal_only():
 
     env2 = make_eval_env()
     pid = default_pid(ub, env2.u_max, env2.target)
-    env2.reset(); pid.reset()
+    env2.reset()
+    pid.reset()
     done = False
     while not done:
         u = pid.update(env2.model.G, dt=env2.dt)
@@ -317,3 +324,37 @@ def test_full_episode_history_is_complete():
     assert len(env.history["glucose"]) == cfg.MAX_STEPS
     for key in ("t", "glucose", "insulin", "error", "reward", "meal"):
         assert len(env.history[key]) == cfg.MAX_STEPS
+
+
+def test_time_of_day_ablation_drops_only_the_clock():
+    """The ablation must remove exactly obs[4] and leave the plant, reward and
+    the other four inputs untouched, or it tests something other than the
+    clock. The default must stay 5-D so existing trained models still load."""
+    full = make_eval_env()
+    ablated = make_eval_env(time_of_day=False)
+    assert full.observation_space.shape == (5,)
+    assert ablated.observation_space.shape == (4,)
+    o_full, _ = full.reset()
+    o_abl, _ = ablated.reset()
+    for _ in range(400):
+        o_full, r_full, *_ = full.step(np.array([0.2]))
+        o_abl, r_abl, *_ = ablated.step(np.array([0.2]))
+    np.testing.assert_array_equal(o_abl, o_full[:4])
+    assert r_abl == r_full
+    assert o_abl.shape == (4,)
+
+
+def test_td3_keeps_twin_critics_after_ddpg():
+    """SB3's DDPG mutates the policy_kwargs it is passed (adds n_critics=1).
+    Through the shared HYPERPARAMS dict that turned every later TD3 in the same
+    process into a single-critic TD3 -- the 60k-step td3_seed0 was trained that
+    way. Each model must get its own copy."""
+    from stable_baselines3 import DDPG, TD3
+
+    from train.common import HYPERPARAMS, model_kwargs
+
+    before = copy.deepcopy(HYPERPARAMS)
+    DDPG("MlpPolicy", make_eval_env(), **model_kwargs())
+    assert HYPERPARAMS == before
+    td3 = TD3("MlpPolicy", make_eval_env(), **model_kwargs())
+    assert len(td3.critic.q_networks) == 2

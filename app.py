@@ -12,6 +12,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
@@ -132,6 +133,11 @@ st.markdown(
     }
     .verdict-banner .trophy { font-size: 1.15rem; margin-right: 0.35rem; }
     .verdict-banner b { font-weight: 700; }
+    .verdict-banner .shift-warn {
+        margin-top: 0.55rem; padding-top: 0.5rem;
+        border-top: 1px dashed rgba(0, 0, 0, 0.18);
+        color: #8A4B00; font-weight: 500;
+    }
 
     /* summary comparison table */
     table.summary {
@@ -160,6 +166,17 @@ st.markdown(
     table.summary tr.hypo-row td { border-top: 2px solid #CED4DA; border-bottom: none; }
 
     [data-testid="stMetricValue"] { font-family: 'JetBrains Mono', monospace; }
+
+    /* parameter-range markers under sidebar sliders */
+    .band {
+        font-size: 0.76rem; line-height: 1.3; color: #5C636E;
+        margin: -0.5rem 0 0.7rem;
+    }
+    .band::before { content: "●"; margin-right: 0.35rem; }
+    .band-green::before { color: #2F9E44; }
+    .band-amber::before { color: #E67700; }
+    .band-red::before { color: #E03131; }
+    .band-red { color: #7A1212; }
     </style>
     """,
     unsafe_allow_html=True,
@@ -292,6 +309,7 @@ def summary_table_html(metrics: dict[str, dict], winner: str | None) -> str:
         ("RMSE", "rmse", lambda v: f"{v:.1f} mg/dL", "min"),
         ("Time in range", "time_in_range", lambda v: f"{v:.1f} %", "max"),
         ("Peak glucose", "max_glucose", lambda v: f"{v:.0f} mg/dL", "min"),
+        ("Min glucose", "min_glucose", lambda v: f"{v:.0f} mg/dL", "max"),
         ("Overshoot", "overshoot", lambda v: f"{v:.0f} mg/dL", "min"),
         ("Total insulin", "total_insulin", lambda v: f"{v:.0f} mU", "min"),
     ]
@@ -342,15 +360,62 @@ def summary_table_html(metrics: dict[str, dict], winner: str | None) -> str:
 
 
 # ------------------------------------------------------------------ #
+# Parameter guidance
+# ------------------------------------------------------------------ #
+# Commercial hybrid closed-loop systems regulate to roughly 110-120 mg/dL.
+CLINICAL_TARGET = (110.0, 120.0)
+
+
+def classify(v: float, train: tuple[float, float],
+             clinical: tuple[float, float] | None = None) -> str:
+    """red outside the RL training support, amber inside it but clinically
+    unusual, green otherwise."""
+    eps = 1e-6
+    if not train[0] - eps <= v <= train[1] + eps:
+        return "red"
+    if clinical and not clinical[0] - eps <= v <= clinical[1] + eps:
+        return "amber"
+    return "green"
+
+
+def band(container, status: str, text: str) -> None:
+    container.markdown(f'<div class="band band-{status}">{text}</div>',
+                       unsafe_allow_html=True)
+
+
+# ------------------------------------------------------------------ #
 # Sidebar controls
 # ------------------------------------------------------------------ #
 st.sidebar.title("Scenario")
+st.sidebar.caption(
+    "Markers under each slider: **green** realistic and inside the RL "
+    "training distribution · **amber** unusual but valid · **red** outside "
+    "anything the RL agents saw in training. PID is a fixed formula and "
+    "degrades gracefully outside these ranges; the RL agents learned one "
+    "scenario, so their behaviour on red settings is unverified "
+    "extrapolation, not evidence."
+)
 
 target = st.sidebar.slider("Target glucose (mg/dL)", 80, 140,
                            int(cfg.TARGET), 5)
+s = classify(target, (cfg.TARGET, cfg.TARGET), CLINICAL_TARGET)
+band(st.sidebar, s,
+     f"clinical closed-loop target {CLINICAL_TARGET[0]:.0f}–"
+     f"{CLINICAL_TARGET[1]:.0f}; RL trained at {cfg.TARGET:.0f} only")
+
 u_max = st.sidebar.slider("Max infusion (mU/min)", 5.0, 40.0,
                           float(cfg.U_MAX), 1.0)
+if abs(u_max - cfg.U_MAX) < 1e-6:
+    band(st.sidebar, "green", f"matches RL training value ({cfg.U_MAX:g})")
+else:
+    band(st.sidebar, "red",
+         f"RL trained at {cfg.U_MAX:g}: agent actions scale with this, so every "
+         f"action now delivers {u_max / cfg.U_MAX:.2f}× its trained dose")
+
 G0 = st.sidebar.slider("Initial glucose (mg/dL)", 80, 250, int(cfg.TARGET), 5)
+g_lo, g_hi = cfg.TRAIN_G0_RANGE
+band(st.sidebar, classify(G0, cfg.TRAIN_G0_RANGE),
+     f"RL training start range {g_lo:.0f}–{g_hi:.0f}")
 
 st.sidebar.markdown("### Meals")
 st.sidebar.caption(
@@ -365,9 +430,18 @@ for i, (t_def, a_def) in enumerate(cfg.EVAL_MEAL_SPEC):
         on = st.checkbox("Enabled", value=True, key=f"on{i}")
         t = st.slider("Onset (min)", 0, cfg.MAX_STEPS - 60, int(t_def), 10,
                       key=f"t{i}")
+        if not on:
+            band(st, "red", "RL agents always trained with this meal present")
         a = st.slider("Amount (mg/dL)", 0, 600, int(a_def), 10, key=f"a{i}")
+        a_rng = (a_def * cfg.TRAIN_AMP_FACTOR[0], a_def * cfg.TRAIN_AMP_FACTOR[1])
+        band(st, classify(a, a_rng),
+             f"RL training range {a_rng[0]:.0f}–{a_rng[1]:.0f}")
         k = st.slider("Absorption k (1/min)", 0.01, 0.10,
                       float(cfg.ABSORPTION_K), 0.005, key=f"k{i}")
+        k_rng = (cfg.ABSORPTION_K * cfg.TRAIN_K_FACTOR[0],
+                 cfg.ABSORPTION_K * cfg.TRAIN_K_FACTOR[1])
+        band(st, classify(k, k_rng),
+             f"RL training range {k_rng[0]:.3f}–{k_rng[1]:.4f}")
     if on and a > 0:
         meals.append(Meal(float(t), float(a), float(k)))
 
@@ -380,15 +454,22 @@ st.sidebar.markdown("### Controllers")
 show_open = st.sidebar.checkbox("Open loop (basal only)", value=True)
 show_pid = st.sidebar.checkbox("PID", value=True)
 
-runs = runner.discover_runs("results")
+runs = runner.discover_runs(
+    "results", report_skipped="skipped_runs_reported" not in st.session_state
+)
+st.session_state["skipped_runs_reported"] = True
 agent_choice: dict[str, Path] = {}
 for algo in ("ddpg", "td3"):
     label = algo.upper()
     if runs[algo]:
         opts = {d.name: d for d in runs[algo]}
         if st.sidebar.checkbox(label, value=True, key=f"use_{algo}"):
-            pick = st.sidebar.selectbox(f"{label} run", list(opts),
-                                        key=f"pick_{algo}")
+            if len(opts) > 1:
+                pick = st.sidebar.selectbox(f"{label} run", list(opts),
+                                            key=f"pick_{algo}")
+            else:
+                pick = next(iter(opts))
+                st.sidebar.caption(f"using {pick}")
             agent_choice[label] = opts[pick]
     else:
         st.sidebar.caption(f"{label}: no trained run found in results/")
@@ -397,17 +478,50 @@ for algo in ("ddpg", "td3"):
 # Simulation
 # ------------------------------------------------------------------ #
 kw = dict(target=float(target), u_max=float(u_max), G0=float(G0))
-histories: dict[str, dict] = {}
+
+# Robustness probe: 90 min is twice the +/-45 min onset jitter seen in training,
+# so a policy that memorised meal times (via the time-of-day input) shows up here.
+SHIFT_MIN = 90.0
+SHIFT_TOLERANCE = 0.20
+
+
+@st.cache_data(show_spinner=False, max_entries=512)
+def shifted_rmse(meal_spec: tuple[tuple[float, float, float], ...],
+                 target: float, u_max: float, G0: float,
+                 controller: tuple) -> float:
+    """RMSE of one controller with every meal shifted SHIFT_MIN later.
+
+    Keyed on the scenario plus the controller's identity (PID gains, or agent
+    run dir), so toggling controllers or retuning PID never re-rolls an agent.
+    """
+    # Clipped so a late meal is delayed rather than pushed off the end of the
+    # day, which would lower RMSE and hide the degradation being measured.
+    shifted = [Meal(min(t + SHIFT_MIN, cfg.MAX_STEPS - 60.0), a, k)
+               for t, a, k in meal_spec]
+    skw = dict(target=target, u_max=u_max, G0=G0)
+    kind, *args = controller
+    if kind == "pid":
+        h = runner.run_pid(shifted, *args, **skw)
+    else:
+        run_dir, algo = args
+        model, vec = cached_agent(run_dir, algo)
+        h = runner.run_agent(shifted, model, vec, **skw)
+    return float(compute_metrics(h, target=target)["rmse"])
+
 
 with st.spinner("Simulating..."):
+    histories: dict[str, dict] = {}
+    controller_ids: dict[str, tuple] = {}
     if show_open:
         histories["Open loop"] = runner.run_open_loop(meals, **kw)
     if show_pid:
         histories["PID"] = runner.run_pid(meals, Kp, Ki, Kd, **kw)
+        controller_ids["PID"] = ("pid", float(Kp), float(Ki), float(Kd))
     for label, run_dir in agent_choice.items():
         model, vec = cached_agent(str(run_dir), label.lower())
         if model is not None:
             histories[label] = runner.run_agent(meals, model, vec, **kw)
+            controller_ids[label] = ("agent", str(run_dir), label.lower())
 
 if not histories:
     st.warning("No controller selected. Enable one in the sidebar.")
@@ -416,24 +530,51 @@ if not histories:
 metrics = {k: compute_metrics(v, target=float(target))
            for k, v in histories.items()}
 
+meal_spec = tuple((m.t_start, m.amplitude, m.k) for m in meals)
+with st.spinner("Checking robustness to meal timing..."):
+    rmse_degradation = {}
+    for k, cid in controller_ids.items():
+        base = metrics[k]["rmse"]
+        if base > 1e-9:
+            s = shifted_rmse(meal_spec, float(target), float(u_max), float(G0),
+                             cid)
+            rmse_degradation[k] = (s - base) / base
+
 # ------------------------------------------------------------------ #
 # Verdict — live winner + comparison table
 # ------------------------------------------------------------------ #
 verdict = pick_winner(metrics)
 winner = verdict["winner"]
 
+
+def schedule_warnings(winner: str | None) -> str:
+    fragile = {k: d for k, d in rmse_degradation.items() if d > SHIFT_TOLERANCE}
+    lines = []
+    if winner in fragile:
+        lines.append(
+            f"{winner} wins here, but its RMSE degrades {fragile[winner]:.0%} "
+            f"when meal times shift — it has learned the fixed schedule rather "
+            f"than responding to meals."
+        )
+    for k, d in fragile.items():
+        if k != winner:
+            lines.append(f"{k}'s RMSE degrades {d:.0%} when meal times shift "
+                         f"by {SHIFT_MIN:.0f} min.")
+    return "".join(f'<div class="shift-warn">⚠ {s}</div>' for s in lines)
+
+
 if winner:
     st.markdown(
         f'<div class="verdict-banner verdict-win">'
         f'<span class="trophy">🏆</span><b>{winner} wins this scenario.</b> '
-        f'{verdict["reason"]}.</div>',
+        f'{verdict["reason"]}.{schedule_warnings(winner)}</div>',
         unsafe_allow_html=True,
     )
 else:
     st.markdown(
         f'<div class="verdict-banner verdict-bad">'
         f'<span class="trophy">⚠</span><b>No safe winner.</b> '
-        f'{verdict["reason"]}.</div>',
+        f'{verdict["reason"]}.{schedule_warnings(None)}</div>',
         unsafe_allow_html=True,
     )
 
@@ -441,7 +582,10 @@ st.markdown(summary_table_html(metrics, winner), unsafe_allow_html=True)
 st.caption(
     "Best value in each row is bold green. Winner is the safety-vetoed "
     "composite of RMSE (45%), time-in-range (30%) and overshoot (25%); any "
-    "controller that spends time below 70 mg/dL is disqualified outright."
+    "controller that spends time below 70 mg/dL is disqualified outright. "
+    "Total insulin and minimum glucose are shown for context but not scored. "
+    f"Each controller is also re-run with every meal {SHIFT_MIN:.0f} min "
+    f"later; an RMSE rise above {SHIFT_TOLERANCE:.0%} is flagged in the banner."
 )
 
 # ------------------------------------------------------------------ #
@@ -548,7 +692,7 @@ st.subheader("Full evaluation metrics")
 
 names = list(metrics)
 data = {}
-for label, key, fmt in ROWS:
+for label, key, _fmt in ROWS:
     data[label] = [metrics[n][key] for n in names]
 df = pd.DataFrame(data, index=names).T
 
@@ -586,8 +730,11 @@ if agent_choice:
                 f = d / "evals" / "evaluations.npz"
                 if not f.exists():
                     continue
-                z = np.load(f)
-                ax.plot(z["timesteps"], z["results"].mean(axis=1),
+                # Closed immediately: an open NpzFile locks the file on Windows
+                # and makes any training run writing to this folder crash.
+                with np.load(f) as z:
+                    steps, res = z["timesteps"], z["results"]
+                ax.plot(steps, res.mean(axis=1),
                         lw=1.6, alpha=0.85,
                         color=COLORS[algo.upper()], label=d.name)
                 plotted = True
