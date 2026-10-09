@@ -95,10 +95,13 @@ st.markdown(
         font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
     }
 
-    /* hide the default Streamlit menu, header and footer */
-    #MainMenu, footer, [data-testid="stToolbar"], [data-testid="stDecoration"] {
-        visibility: hidden;
-        height: 0;
+    /* Hide the header chrome item by item. Hiding stToolbar itself would also
+       hide stExpandSidebarButton, its child, leaving no way to reopen a
+       collapsed sidebar. */
+    [data-testid="stMainMenu"], [data-testid="stToolbarActions"],
+    [data-testid="stAppDeployButton"], [data-testid="stStatusWidget"],
+    [data-testid="stDecoration"], footer {
+        display: none;
     }
     .block-container { padding-top: 1.6rem; padding-bottom: 3rem; }
 
