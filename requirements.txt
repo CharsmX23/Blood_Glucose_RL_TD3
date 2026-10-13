@@ -1,0 +1,13 @@
+# Streamlit Community Cloud reads this file. The CPU-only PyTorch index is
+# load-bearing: the default PyPI torch pulls ~2.5 GB of CUDA/nvidia wheels,
+# which blows the deploy. The nets here are 256x256, so CPU is correct anyway.
+--index-url https://download.pytorch.org/whl/cpu
+--extra-index-url https://pypi.org/simple
+
+numpy>=1.24,<3
+pandas>=2.0
+matplotlib>=3.7
+gymnasium>=0.29,<2
+stable-baselines3>=2.3.0
+torch>=2.0
+streamlit>=1.30
